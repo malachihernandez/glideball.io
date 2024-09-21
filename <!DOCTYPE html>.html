@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PixelGlide</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #FFF; display: flex; flex-direction: column; height: 100vh; }
+        .logo { text-align: center; padding: 30px 0; font-size: 28px; font-weight: bold; font-family: 'Courier New', monospace; image-rendering: pixelated; }
+        .game-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; }
+        canvas { display: block; image-rendering: pixelated; max-width: 100%; max-height: 100%; }
+        .ad-space { height: 90px; background-color: #f0f0f0; display: flex; justify-content: center; align-items: center; }
+    </style>
+</head>
+<body>
+    <div style="display: flex; justify-content: center; align-items: center; padding: 10px; position: relative;">
+        <span style="position: absolute; top: 5px; left: 5px; font-size: 10px; color: #555555;">Version: 1.0.0</span>
+        <div class="logo">GlideBall<sup style="font-size: 0.5em;">TM</sup></div>
+        <button id="soundButton" style="position: absolute; right: 50px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11 5L6 9H2V15H6L11 19V5Z" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19.07 4.93C20.9447 6.80528 21.9979 9.34836 21.9979 12C21.9979 14.6516 20.9447 17.1947 19.07 19.07M15.54 8.46C16.4774 9.39764 17.0039 10.6692 17.0039 11.995C17.0039 13.3208 16.4774 14.5924 15.54 15.53" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button id="shareButton" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 8C19.6569 8 21 6.65685 21 5C21 3.34315 19.6569 2 18 2C16.3431 2 15 3.34315 15 5C15 6.65685 16.3431 8 18 8Z" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 15C7.65685 15 9 13.6569 9 12C9 10.3431 7.65685 9 6 9C4.34315 9 3 10.3431 3 12C3 13.6569 4.34315 15 6 15Z" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M18 22C19.6569 22 21 20.6569 21 19C21 17.3431 19.6569 16 18 16C16.3431 16 15 17.3431 15 19C15 20.6569 16.3431 22 18 22Z" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8.59 13.51L15.42 17.49" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M15.41 6.51L8.59 10.49" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+    <div class="ad-space">Google Banner Ad Space</div>
+    <audio id="pingSound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3"></audio>
+    <audio id="gameOverSound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.mp3"></audio>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const pingSound = document.getElementById('pingSound');
+        const gameOverSound = document.getElementById('gameOverSound');
+
+        const MAX_SPEED = 8;
+
+        let ballColor = '#FF0000';
+        let pipeColor = '#3A8C14';
+
+        let isPaused = true;
+        let isPopupOpen = false;
+        let isSoundOn = true;
+        let playerName = 'Anonymous';
+
+        function calculateSpeed(score) {
+            return Math.min(2 + (score * 0.1), MAX_SPEED);
+        }
+
+        function resizeCanvas() {
+            const gameContainer = document.querySelector('.game-container');
+            canvas.width = gameContainer.clientWidth;
+            canvas.height = gameContainer.clientHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        let ball = {
+            x: 50,
+            y: canvas.height / 2,
+            radius: 12
+        };
+
+        let pipes = [];
+        let score = 0;
+        let gameSpeed = 2;
+        let gameOver = false;
+        const pipeSpacing = 300;
+        const initialPipeDistance = canvas.width;
+        const uniformGap = 100;
+
+        function showInstructionsModal() {
+            isPopupOpen = true;
+            const modalContent = `
+                <div id="instructionsPopup" style="background: #FFE4E1; padding: 20px; border: 2px solid #8B4513; text-align: center;">
+                    <h2 style="margin-top: 0; color: #8B4513; font-family: 'Courier New', monospace;">Welcome to GlideBall!</h2>
+                    <p style="color: #8B4513;">Guide the ball through the pipes without hitting them or the borders.</p>
+                    <p style="color: #8B4513;">Use your mouse to move the ball up and down.</p>
+                    <input type="text" id="playerNameInput" placeholder="Enter your name (optional)" style="margin-bottom: 10px; padding: 5px;">
+                    <p style="color: #8B4513;">Press the space bar to start the game.</p>
+                    <div style="display: flex; justify-content: center; margin-top: 20px;">
+                        <button id="startGameButton" style="padding: 10px 20px; background: #8B4513; color: #FFE4E1; border: none; cursor: pointer; font-size: 16px; transition: background-color 0.3s;">Start Game</button>
+                    </div>
+                </div>
+            `;
+
+            const modalContainer = document.createElement('div');
+            modalContainer.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 1000;
+            `;
+            modalContainer.innerHTML = modalContent;
+            canvas.parentNode.appendChild(modalContainer);
+
+            const startGameButton = document.getElementById('startGameButton');
+            startGameButton.addEventListener('mouseover', function() {
+                this.style.backgroundColor = '#A0522D';
+            });
+            startGameButton.addEventListener('mouseout', function() {
+                this.style.backgroundColor = '#8B4513';
+            });
+            startGameButton.addEventListener('click', function() {
+                const nameInput = document.getElementById('playerNameInput');
+                playerName = nameInput.value.trim() || 'Anonymous';
+                canvas.parentNode.removeChild(modalContainer);
+                isPopupOpen = false;
+                isPaused = false;
+                updateGame();
+            });
+
+            document.addEventListener('keydown', function startGameHandler(event) {
+                if (event.code === 'Space') {
+                    const nameInput = document.getElementById('playerNameInput');
+                    playerName = nameInput.value.trim() || 'Anonymous';
+                    canvas.parentNode.removeChild(modalContainer);
+                    isPopupOpen = false;
+                    isPaused = false;
+                    updateGame();
+                    document.removeEventListener('keydown', startGameHandler);
+                }
+            });
+        }
+
+        function createPipe() {
+            const minHeight = 50;
+            const maxHeight = canvas.height - uniformGap - minHeight;
+            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight) + minHeight);
+
+            pipes.push({
+                x: canvas.width,
+                topHeight: topHeight,
+                bottomY: topHeight + uniformGap,
+                passed: false
+            });
+        }
+
+        function drawBall() {
+            ctx.fillStyle = ballColor;
+            ctx.beginPath();
+            ctx.arc(ball.x + ball.radius, ball.y + ball.radius, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawPipes() {
+            pipes.forEach(pipe => {
+                // Main pipe body
+                const gradient = ctx.createLinearGradient(pipe.x, 0, pipe.x + 50, 0);
+                gradient.addColorStop(0, pipeColor);
+                gradient.addColorStop(0.5, lightenColor(pipeColor, 20));
+                gradient.addColorStop(1, pipeColor);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(pipe.x, 0, 50, pipe.topHeight);
+                ctx.fillRect(pipe.x, pipe.bottomY, 50, canvas.height - pipe.bottomY);
+
+                // Pipe ends with flare
+                ctx.fillStyle = darkenColor(pipeColor, 20);
+                ctx.fillRect(pipe.x - 5, 0, 5, pipe.topHeight);
+                ctx.fillRect(pipe.x + 50, 0, 5, pipe.topHeight);
+                ctx.fillRect(pipe.x - 5, pipe.bottomY, 5, canvas.height - pipe.bottomY);
+                ctx.fillRect(pipe.x + 50, pipe.bottomY, 5, canvas.height - pipe.bottomY);
+
+                // Pipe end rims with flare
+                const rimGradient = ctx.createLinearGradient(pipe.x - 5, 0, pipe.x + 55, 0);
+                rimGradient.addColorStop(0, darkenColor(pipeColor, 20));
+                rimGradient.addColorStop(0.5, lightenColor(pipeColor, 20));
+                rimGradient.addColorStop(1, darkenColor(pipeColor, 20));
+                ctx.fillStyle = rimGradient;
+                ctx.fillRect(pipe.x - 5, pipe.topHeight - 4, 60, 4);
+                ctx.fillRect(pipe.x - 5, pipe.bottomY, 60, 4);
+            });
+        }
+
+        function lightenColor(color, percent) {
+            const num = parseInt(color.replace("#",""), 16),
+                amt = Math.round(2.55 * percent),
+                R = (num >> 16) + amt,
+                B = (num >> 8 & 0x00FF) + amt,
+                G = (num & 0x0000FF) + amt;
+            return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (B<255?B<1?0:B:255)*0x100 + (G<255?G<1?0:G:255)).toString(16).slice(1);
+        }
+
+        function darkenColor(color, percent) {
+            const num = parseInt(color.replace("#",""), 16),
+                amt = Math.round(2.55 * percent),
+                R = (num >> 16) - amt,
+                B = (num >> 8 & 0x00FF) - amt,
+                G = (num & 0x0000FF) - amt;
+            return "#" + (0x1000000 + (R>0?R:0)*0x10000 + (B>0?B:0)*0x100 + (G>0?G:0)).toString(16).slice(1);
+        }
+
+        function drawBoundaries() {
+            ctx.strokeStyle = '#8B4513';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(canvas.width, 0);
+            ctx.moveTo(0, canvas.height);
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.stroke();
+        }
+
+        function checkCollision(x, y, radius, rectX, rectY, rectWidth, rectHeight) {
+            const closestX = Math.max(rectX, Math.min(x, rectX + rectWidth));
+            const closestY = Math.max(rectY, Math.min(y, rectY + rectHeight));
+
+            const distanceX = x - closestX;
+            const distanceY = y - closestY;
+
+            return (distanceX * distanceX + distanceY * distanceY) < (radius * radius);
+        }
+
+        function updateGame() {
+            if (gameOver || isPaused) return;
+
+            ctx.fillStyle = '#E6F3FF';  // Very light blue background
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawBoundaries();
+            drawBall();
+            drawPipes();
+
+            pipes.forEach((pipe, index) => {
+                pipe.x -= gameSpeed;
+
+                if (pipe.x + 50 < 0) {
+                    pipes.splice(index, 1);
+                }
+
+                if (
+                    checkCollision(ball.x + ball.radius, ball.y + ball.radius, ball.radius, pipe.x, 0, 50, pipe.topHeight) ||
+                    checkCollision(ball.x + ball.radius, ball.y + ball.radius, ball.radius, pipe.x, pipe.bottomY, 50, canvas.height - pipe.bottomY)
+                ) {
+                    gameOver = true;
+                    if (isSoundOn) {
+                        gameOverSound.play();
+                    }
+                    showGameOverModal();
+                }
+
+                if (!pipe.passed && pipe.x + 50 < ball.x) {
+                    pipe.passed = true;
+                    score++;
+                    if (isSoundOn) {
+                        pingSound.play();
+                    }
+                }
+            });
+
+            if (ball.y <= 2 || ball.y + ball.radius * 2 >= canvas.height - 2) {
+                gameOver = true;
+                if (isSoundOn) {
+                    gameOverSound.play();
+                }
+                showGameOverModal();
+            }
+
+            if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - pipeSpacing) {
+                createPipe();
+            }
+
+            gameSpeed = calculateSpeed(score);
+
+            ctx.fillStyle = '#000000';
+            ctx.font = '24px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 30);
+
+            requestAnimationFrame(updateGame);
+        }
+
+        function showGameOverModal() {
+            isPopupOpen = true;
+            const modalContent = `
+                <div id="gameOverPopup" style="background: #FFE4E1; padding: 20px; border: 2px solid #8B4513; text-align: center;">
+                    <h2 style="margin-top: 0; color: #8B4513; font-family: 'Courier New', monospace;">Game Over</h2>
+                    <p style="color: #8B4513;">Your score: ${score}</p>
+                    <div style="display: flex; flex-direction: column; align-items: center; margin-top: 20px;">
+                        <button id="restartButton" style="padding: 10px 20px; background: #8B4513; color: #FFE4E1; border: none; cursor: pointer; font-size: 16px; transition: background-color 0.3s; margin-bottom: 10px; width: 200px;">Restart</button>
+                    </div>
+                </div>
+            `;
+
+            const modalContainer = document.createElement('div');
+            modalContainer.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 1000;
+            `;
+            modalContainer.innerHTML = modalContent;
+            canvas.parentNode.appendChild(modalContainer);
+
+            const restartButton = document.getElementById('restartButton');
+
+            restartButton.addEventListener('mouseover', function() {
+                this.style.backgroundColor = '#A0522D';
+            });
+            restartButton.addEventListener('mouseout', function() {
+                this.style.backgroundColor = '#8B4513';
+            });
+            restartButton.addEventListener('click', function() {
+                restartGame();
+                canvas.parentNode.removeChild(modalContainer);
+                isPopupOpen = false;
+            });
+
+            submitScore(playerName, score);
+        }
+
+        function submitScore(name, score) {
+            const ipAddress = 'Your logic to fetch IP';  // Fetch the user's IP address if available
+            const url = 'https://script.google.com/macros/s/AKfycbzl9t_3nSyUkHjG8S8HRLz9lbNL_vFFdwxFth2jPpsNiynCIELY53okNPkkOF_L_k-Z/exec';
+
+            const data = {
+                action: 'submitScore',
+                ipAddress: ipAddress,
+                name: name,
+                score: score
+            };
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                console.log('Score submitted:', result);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function restartGame() {
+            gameOver = false;
+            score = 0;
+            pipes = [];
+            ball.y = canvas.height / 2;
+            gameSpeed = 2;
+            updateGame();
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!gameOver && !isPaused) {
+                const rect = canvas.getBoundingClientRect();
+                ball.y = e.clientY - rect.top - ball.radius;
+            }
+        });
+
+        showInstructionsModal();
+
+        document.getElementById('shareButton').addEventListener('click', function() {
+            const shareMessage = `Can you beat my score? Come play GlideBall with me! I just passed ${score} pipes!`;
+            const shareUrl = window.location.href;
+            const encodedMessage = encodeURIComponent(shareMessage);
+            const encodedUrl = encodeURIComponent(shareUrl);
+
+            const shareLinks = {
+                twitter: `https://twitter.com/intent/tweet?text=${encodedMessage}&url=${encodedUrl}`,
+                facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedMessage}`,
+                instagram: `https://www.instagram.com/`,
+                email: `mailto:?subject=Check out GlideBall&body=${encodedMessage} ${shareUrl}`
+            };
+
+            const popupContent = `
+                <div id="sharePopup" style="background: #FFE4E1; padding: 20px; border: 2px solid #8B4513;">
+                    <h2 style="margin-top: 0; color: #8B4513; font-family: 'Courier New', monospace;">Share your score!</h2>
+                    <p style="color: #8B4513;">${shareMessage}</p>
+                    <div style="display: flex; justify-content: space-around;">
+                        <a href="${shareLinks.twitter}" target="_blank" style="text-decoration: none; color: #8B4513; font-weight: bold;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Twitter</a>
+                        <a href="${shareLinks.facebook}" target="_blank" style="text-decoration: none; color: #8B4513; font-weight: bold;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Facebook</a>
+                        <a href="${shareLinks.instagram}" target="_blank" style="text-decoration: none; color: #8B4513; font-weight: bold;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Instagram</a>
+                        <a href="${shareLinks.email}" style="text-decoration: none; color: #8B4513; font-weight: bold;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Email</a>
+                    </div>
+                    <div style="display: flex; justify-content: center; margin-top: 20px;">
+                        <button id="closePopup" style="padding: 10px 20px; background: #8B4513; color: #FFE4E1; border: none; cursor: pointer; font-size: 16px; transition: background-color 0.3s;">Close</button>
+                    </div>
+                </div>
+            `;
+
+            const popupContainer = document.createElement('div');
+            popupContainer.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 1000;
+            `;
+            popupContainer.innerHTML = popupContent;
+            canvas.parentNode.appendChild(popupContainer);
+
+            const closeButton = document.getElementById('closePopup');
+            closeButton.addEventListener('mouseover', function() {
+                this.style.backgroundColor = '#A0522D';
+            });
+            closeButton.addEventListener('mouseout', function() {
+                this.style.backgroundColor = '#8B4513';
+            });
+
+            closeButton.addEventListener('click', function() {
+                canvas.parentNode.removeChild(popupContainer);
+            });
+        });
+
+        document.getElementById('soundButton').addEventListener('click', function() {
+            isSoundOn = !isSoundOn;
+            this.innerHTML = isSoundOn ? `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M11 5L6 9H2V15H6L11 19V5Z" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M19.07 4.93C20.9447 6.80528 21.9979 9.34836 21.9979 12C21.9979 14.6516 20.9447 17.1947 19.07 19.07M15.54 8.46C16.4774 9.39764 17.0039 10.6692 17.0039 11.995C17.0039 13.3208 16.4774 14.5924 15.54 15.53" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            ` : `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M11 5L6 9H2V15H6L11 19V5Z" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M23 9L17 15" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M17 9L23 15" stroke="#808080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            `;
+        });
+
+        document.addEventListener('keydown', function(event) {
+            if (event.shiftKey && event.key.toLowerCase() === 'c' && !isPopupOpen) {
+                const colorOptions = [
+                    { name: 'Red', ball: '#FF0000', pipe: '#3A8C14' },
+                    { name: 'Blue', ball: '#0000FF', pipe: '#FFA500' },
+                    { name: 'Green', ball: '#00FF00', pipe: '#FF1493' },
+                    { name: 'Yellow', ball: '#FFFF00', pipe: '#800080' },
+                ];
+
+                const colorPopupContent = `
+                    <div id="colorPopup" style="background: #FFE4E1; padding: 20px; border: 2px solid #8B4513;">
+                        <h2 style="margin-top: 0; color: #8B4513; font-family: 'Courier New', monospace;">Choose Colors</h2>
+                        <div style="display: flex; justify-content: space-around; flex-wrap: wrap;">
+                            ${colorOptions.map(option => `
+                                <button class="colorOption" data-ball="${option.ball}" data-pipe="${option.pipe}" style="padding: 10px; margin: 5px; background: ${option.ball}; color: #FFE4E1; border: none; cursor: pointer; font-size: 16px; transition: transform 0.3s;">
+                                    ${option.name}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <div style="display: flex; justify-content: center; margin-top: 20px;">
+                            <button id="closeColorPopup" style="padding: 10px 20px; background: #8B4513; color: #FFE4E1; border: none; cursor: pointer; font-size: 16px; transition: background-color 0.3s;">Close</button>
+                        </div>
+                    </div>
+                `;
+
+                const colorPopupContainer = document.createElement('div');
+                colorPopupContainer.style.cssText = `
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 1000;
+                `;
+                colorPopupContainer.innerHTML = colorPopupContent;
+                canvas.parentNode.appendChild(colorPopupContainer);
+
+                isPaused = true;
+                isPopupOpen = true;
+
+                const closeColorButton = document.getElementById('closeColorPopup');
+                closeColorButton.addEventListener('mouseover', function() {
+                    this.style.backgroundColor = '#A0522D';
+                });
+                closeColorButton.addEventListener('mouseout', function() {
+                    this.style.backgroundColor = '#8B4513';
+                });
+
+                closeColorButton.addEventListener('click', function() {
+                    canvas.parentNode.removeChild(colorPopupContainer);
+                    isPaused = false;
+                    isPopupOpen = false;
+                    requestAnimationFrame(updateGame);
+                });
+
+                const colorButtons = document.querySelectorAll('.colorOption');
+                colorButtons.forEach(button => {
+                    button.addEventListener('mouseover', function() {
+                        this.style.transform = 'scale(1.1)';
+                    });
+                    button.addEventListener('mouseout', function() {
+                        this.style.transform = 'scale(1)';
+                    });
+                    button.addEventListener('click', function() {
+                        ballColor = this.dataset.ball;
+                        pipeColor = this.dataset.pipe;
+                        canvas.parentNode.removeChild(colorPopupContainer);
+                        isPaused = false;
+                        isPopupOpen = false;
+                        requestAnimationFrame(updateGame);
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>
