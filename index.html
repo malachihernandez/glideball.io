@@ -17,6 +17,7 @@
 <body>
     <div style="display: flex; justify-content: center; align-items: center; padding: 10px; position: relative;">
         <span style="position: absolute; top: 5px; left: 5px; font-size: 10px; color: #555555;">Version: 1.0.0</span>
+        <a href="#" id="privacyPolicyLink" style="position: absolute; top: 20px; left: 5px; font-size: 10px; color: #555555;" onclick="openPrivacyPolicy(); return false;">Privacy Policy</a>
         <div class="logo">GlideBall<sup style="font-size: 0.5em;">TM</sup></div>
         <button id="soundButton" style="position: absolute; right: 50px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer;">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -511,6 +512,64 @@
                 });
             }
         });
+
+        function openPrivacyPolicy() {
+            isPopupOpen = true;
+            const wasGameRunning = !isPaused && !gameOver;
+            isPaused = true;
+            
+            const privacyPolicyContent = `
+                <div id="privacyPolicyPopup" style="background: #FFE4E1; padding: 20px; border: 2px solid #8B4513; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                    <h2 style="margin-top: 0; color: #8B4513; font-family: 'Courier New', monospace;">Privacy Policy</h2>
+                    <p style="color: #8B4513; line-height: 1.6;">
+                        <strong>Last updated: September 21, 2024</strong><br><br>
+
+                        At Glideball, we respect your privacy. We do not record, store, collect information that identifies you as an individual. We do not attempt to obtain any sensitive information. If you contact us via email or other social media directly, we may keep a copy of that though.<br><br>
+
+                        GlideBall will not sell, trade or disclose any personal information you might give us without your prior consent. However, information will be disclosed where required by law.<br><br>
+
+                        Although we ourselves do not attempt to track your information, our products may contain third parties' APIs. This Privacy Policy does not apply to information that may be collected by that third party, so we are therefore not responsible for that information.<br><br>
+
+                        We do not store any cookies on your browser.<br><br>
+
+                        <strong>Policy Updates</strong><br><br>
+
+                        We may change this privacy policy from time to time. Any changes will be updated on this page.
+                    </p>
+                    <div style="display: flex; justify-content: center; margin-top: 20px;">
+                        <button id="closePrivacyPolicy" style="padding: 10px 20px; background: #8B4513; color: #FFE4E1; border: none; cursor: pointer; font-size: 16px; transition: background-color 0.3s;">Close</button>
+                    </div>
+                </div>
+            `;
+
+            const popupContainer = document.createElement('div');
+            popupContainer.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 1000;
+            `;
+            popupContainer.innerHTML = privacyPolicyContent;
+            document.body.appendChild(popupContainer);
+
+            const closeButton = document.getElementById('closePrivacyPolicy');
+            closeButton.addEventListener('mouseover', function() {
+                this.style.backgroundColor = '#A0522D';
+            });
+            closeButton.addEventListener('mouseout', function() {
+                this.style.backgroundColor = '#8B4513';
+            });
+
+            closeButton.addEventListener('click', function() {
+                document.body.removeChild(popupContainer);
+                isPopupOpen = false;
+                isPaused = !wasGameRunning;
+                if (wasGameRunning && !gameOver) {
+                    requestAnimationFrame(updateGame);
+                }
+            });
+        }
     </script>
 </body>
 </html>
